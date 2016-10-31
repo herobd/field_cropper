@@ -23,6 +23,8 @@
 
 using namespace std;
 
+#define SAVE_IMAGES 0
+
 #define NUM_RECORDS 50
 //#define NUM_FIELDS 27
 //#define NUM_FIELDS_USING 13
@@ -613,6 +615,7 @@ void chopFields(int recordNum, DImage& source, double skewAngle)
         y = refinedFields[recordNum][z].y + CROP;
         w = refinedFields[recordNum][z].w-2*CROP;
         h = refinedFields[recordNum][z].h-2*CROP;
+#if SAVE_IMAGES
         current = source.copy(x,y,w,h);
 
 
@@ -676,7 +679,10 @@ void chopFields(int recordNum, DImage& source, double skewAngle)
         filename += qFileName;
         //cout<<"save: "<<filename<<endl;
         current.save(filename.c_str());
-        if (fieldName.compare("PR_NAME")==0 && groundTruthFile->record(recordNum).at(fieldName).length()>0) 
+#endif
+        if (fieldName.compare("PR_NAME")==0 
+                && groundTruthFile->record(recordNum).at(fieldName).length()>0
+                && groundTruthFile->record(recordNum).at(fieldName).compare(" ")!=0) 
         {
             if (refinedFields[recordNum][z].x<minX)
                 minX=refinedFields[recordNum][z].x;
@@ -971,11 +977,18 @@ int main(int argc, char** argv)
     {
         start=false;
         startPageId = argv[5];
+        outNames.open(outputDirectory+"names_1930.txt",ios_base::app);
+        assert(outNames.is_open());
+        outGTP.open(outputDirectory+"names_1930.gtp",ios_base::app);
+        assert(outGTP.is_open());
     }
-    outNames.open(outputDirectory+"names.txt");
-    assert(outNames.is_open());
-    outGTP.open(outputDirectory+"names.gtp");
-    assert(outGTP.is_open());
+    else
+    {
+        outNames.open(outputDirectory+"names_1930.txt");
+        assert(outNames.is_open());
+        outGTP.open(outputDirectory+"names_1930.gtp");
+        assert(outGTP.is_open());
+    }
     /*//get ground truth
     groundTruthFile = new FSI_File();
     groundTruthFile->load("redacted_indexing/N1821861-001.xml.redacted");
@@ -1009,6 +1022,10 @@ int main(int argc, char** argv)
     //for(int ci = 2; ci < argc; ++ci){
     for (auto gt_and_image : gt_to_images)
     {
+        if (
+                gt_and_image.first.compare("transcription/US_Massachusetts-1930_US_Census/004607676_00346.xml")==0 ||
+                gt_and_image.first.compare("transcription/US_Massachusetts-1930_US_Census/004607676_00401.xml")==0)
+            continue;//xml parser fails on this for some reason
         if (!start)
         {
             int startC=gt_and_image.second.find_last_of('/')+1;

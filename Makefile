@@ -16,16 +16,21 @@ endif
 
 all: field_cropper tester
 
-IRIS_File.o: IRIS_File.h IRIS_File.cpp
-	g++ `xml2-config --cflags --libs` -c $(CXXFLAGS) $(LDPRJ) $(INCPATH) IRIS_File.cpp
+IRIS_File.o: IRIS_File.h IRIS_File.cpp tinyxml2.h
+	g++ -c $(CXXFLAGS) $(LDPRJ) $(INCPATH) IRIS_File.cpp
 
-field_cropper: document_to_field_images.cpp IRIS_File.h IRIS_File.o
-	g++ document_to_field_images.cpp -o $(BINPATH)/field_cropper IRIS_File.o `xml2-config --cflags --libs` $(CXXFLAGS) $(LDPRJ) $(INCPATH) 
+tinyxml2.o: tinyxml2.h tinyxml2.cpp
+	g++ -c $(CXXFLAGS) $(LDPRJ) $(INCPATH) tinyxml2.cpp
 
-tester: testIRIS.cpp IRIS_File.h IRIS_File.o
-	g++ testIRIS.cpp -o $(BINPATH)/tester IRIS_File.o `xml2-config --cflags --libs` $(CXXFLAGS) $(LDPRJ) $(INCPATH) 
+
+field_cropper: document_to_field_images.cpp IRIS_File.h IRIS_File.o tinyxml2.o
+	g++ document_to_field_images.cpp -o $(BINPATH)/field_cropper IRIS_File.o tinyxml2.o $(CXXFLAGS) $(LDPRJ) $(INCPATH) 
+
+tester: testIRIS.cpp IRIS_File.h IRIS_File.o tinyxml2.o
+	g++ testIRIS.cpp -o $(BINPATH)/tester IRIS_File.o tinyxml2.o $(CXXFLAGS) $(LDPRJ) $(INCPATH) 
 
 clean:
 	rm $(BINPATH)/field_cropper 
 	rm $(BINPATH)/tester
 	rm IRIS_File.o
+	rm tinyxml2.o
