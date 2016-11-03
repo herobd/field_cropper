@@ -1,5 +1,5 @@
 #CXXFLAGS	= -O3 -fPIC -Wall
-CXXFLAGS	= -g   -std=c++0x -fPIC -Wall
+CXXFLAGS	= -g   -std=c++0x -fPIC -Wall -DMEXICO
 
 #On marylou5, use the INCPATH and LDPRJ below instead!
 ifeq ($(USER),djk2)

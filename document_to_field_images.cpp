@@ -45,6 +45,9 @@ string croppedFileName;
 
 vector< vector<DRect> > fields;
 vector< vector<DRect> > refinedFields;
+#ifdef MEXICO
+bool useDitto;
+#endif
 
 /*int numRecordFields;
 int fieldCount;
@@ -312,6 +315,19 @@ void refineReg(DImage& source)
         }
     } 
 }
+void getMS(const vector<float>& vs, float* mean, float* std)
+{
+    *mean=0;
+    for (float v : vs)
+        *mean+=v;
+    *mean/=vs.size();
+
+    *std=0;
+    for (float v : vs)
+        *std+=(v-*mean)*(v-*mean);
+    *std/=vs.size();
+    *std=sqrt(*std);
+}
 void improveFields(DImage& source)
 {
     int FACTOR = 12;
@@ -333,6 +349,10 @@ void improveFields(DImage& source)
     int rightVal;
     std::vector<int> columns;
     std::vector<int> rows;
+#ifdef MEXICO
+    vector<float> nameNoDitto;
+    vector<float> nameCandidateDitto;
+#endif
     for(int recordIndex = 0; recordIndex < groundTruthFile->numRecords(); recordIndex++)
     {
         for(int fieldIndex = 0; fieldIndex < refinedFields[recordIndex].size(); fieldIndex++)
@@ -438,22 +458,53 @@ void improveFields(DImage& source)
             refinedFields[recordIndex][fieldIndex].w = x1-x0+1;
             refinedFields[recordIndex][fieldIndex].h = y1-y0+1;
 
-    //        std::cout << "old : " <<
-    //                fields[refinedFieldsIndex].x << " "
-    //             << fields[refinedFieldsIndex].y << " "
-    //             << fields[refinedFieldsIndex].w << " "
-    //             << fields[refinedFieldsIndex].h << std::endl;
-    //        std::cout << "new : " <<
-    //                refinedFields[refinedFieldsIndex].x << " "
-    //             << refinedFields[refinedFieldsIndex].y << " "
-    //             << refinedFields[refinedFieldsIndex].w << " "
-    //             << refinedFields[refinedFieldsIndex].h << std::endl;
+            std::cout << "old : " <<
+                    fields[recordIndex][fieldIndex].x << " "
+                 << fields[recordIndex][fieldIndex].y << " "
+                 << fields[recordIndex][fieldIndex].w << " "
+                 << fields[recordIndex][fieldIndex].h << std::endl;
+            std::cout << "new : " <<
+                    refinedFields[recordIndex][fieldIndex].x << " "
+                 << refinedFields[recordIndex][fieldIndex].y << " "
+                 << refinedFields[recordIndex][fieldIndex].w << " "
+                 << refinedFields[recordIndex][fieldIndex].h << std::endl;
 
             refinedFieldsIndex++;
             //DRect newFieldRect = DRect(x0,y0,x1-x0,y1-y0);
             //refinedFields[refinedFieldsIndex++] = newFieldRect;
+#ifdef MEXICO
+            if (fieldNames[fieldIndex].compare("PR_NAME")==0)
+            {
+                float avg=0;
+                for (int x=x0; x<=x1; x++)
+                    for (int y=y0; y<=y1; y++)
+                        avg+=getPixel(source, x,y);
+                avg/=(x1-x0+1)*(y1-y0+1);
+                string name = groundTruthFile->record(recordIndex).at(fieldNames[fieldIndex]);
+                if (name.find_first_of('[')==string::npos)
+                    nameNoDitto.push_back(avg);
+                else
+                    nameCandidateDitto.push_back(avg);
+            }
+#endif 
         }
     }
+#ifdef MEXICO
+    if (nameCandidateDitto.size()==0)
+        useDitto=false;
+    else
+    {
+        float meanNo, stdNo, meanCan, stdCan;
+        getMS(nameNoDitto,&meanNo,&stdNo);
+        getMS(nameCandidateDitto,&meanCan, &stdCan);
+        cout<<"meanNo: "<<meanNo<<"\tstdNo:"<<stdNo<<endl;
+        cout<<"meanCan: "<<meanCan<<"\tstdCan:"<<stdCan<<endl;
+        if (meanCan<meanNo+stdNo && meanCan>meanNo-stdNo)
+            useDitto=false;
+        else
+            useDitto=true;
+    }
+#endif
     //refinedFieldsSize = refinedFieldsIndex;
 }
 
@@ -684,6 +735,18 @@ void chopFields(int recordNum, DImage& source, double skewAngle)
                 && groundTruthFile->record(recordNum).at(fieldName).length()>0
                 && groundTruthFile->record(recordNum).at(fieldName).compare(" ")!=0) 
         {
+            string name = groundTruthFile->record(recordNum).at(fieldName);
+#ifdef MEXICO
+            int bkt = name.find_first_of('[');
+            if (bkt!=string::npos)
+            {
+                int bkt2 = name.find_last_of(']');
+                if (useDitto)
+                    name = name.substr(0,bkt)+" -";
+                else
+                    name = name.substr(0,bkt)+" "+name.substr(bkt+1,(bkt2-bkt)-1);
+            }
+#endif
             if (refinedFields[recordNum][z].x<minX)
                 minX=refinedFields[recordNum][z].x;
             if (refinedFields[recordNum][z].y<minY)
@@ -692,8 +755,8 @@ void chopFields(int recordNum, DImage& source, double skewAngle)
                 maxX=refinedFields[recordNum][z].x+refinedFields[recordNum][z].w;
             if (refinedFields[recordNum][z].y+refinedFields[recordNum][z].h>maxY)
                 maxY=refinedFields[recordNum][z].y+refinedFields[recordNum][z].h;
-            outNames<<filename<<" "<<groundTruthFile->record(recordNum).at(fieldName)<<endl;
-            outGTP<<croppedFileName<<" "<<x-minX<<" "<<y-minY<<" "<<(x-minX)+w-1<<" "<<(y-minY)+h-1<<" "<<groundTruthFile->record(recordNum).at(fieldName)<<endl;
+            outNames<<filename<<" "<<name<<endl;
+            outGTP<<croppedFileName<<" "<<x-minX<<" "<<y-minY<<" "<<(x-minX)+w-1<<" "<<(y-minY)+h-1<<" "<<name<<endl;
         }
     }
 }
@@ -977,16 +1040,16 @@ int main(int argc, char** argv)
     {
         start=false;
         startPageId = argv[5];
-        outNames.open(outputDirectory+"names_1930.txt",ios_base::app);
+        outNames.open(outputDirectory+"names.txt",ios_base::app);
         assert(outNames.is_open());
-        outGTP.open(outputDirectory+"names_1930.gtp",ios_base::app);
+        outGTP.open(outputDirectory+"names.gtp",ios_base::app);
         assert(outGTP.is_open());
     }
     else
     {
-        outNames.open(outputDirectory+"names_1930.txt");
+        outNames.open(outputDirectory+"names.txt");
         assert(outNames.is_open());
-        outGTP.open(outputDirectory+"names_1930.gtp");
+        outGTP.open(outputDirectory+"names.gtp");
         assert(outGTP.is_open());
     }
     /*//get ground truth

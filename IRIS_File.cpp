@@ -137,6 +137,7 @@ int IRIS_File::load(std::string stFile){
 
   //now actually get the information out of the records
   std::map<int,std::string> givenNames, lastNames;
+  std::map<int,bool> isHead;
   std::regex nonNum("[^\\d]");
   std::regex bracketed("<.*>");
   while (header)
@@ -212,6 +213,16 @@ int IRIS_File::load(std::string stFile){
                     return 0;
                 }
             }
+            if (fieldName.compare("PR_RELATIONSHIP")==0)
+            {
+#ifdef MEXICO
+                if (fieldValue.length()>0 || fieldValue[0]!=' ')
+#else
+                if (fieldValue.compare("Head") ==0 || fieldValue.compare("HEAD") ==0)
+#endif
+                    isHead[recordNum]=true;
+            }
+            
         }
         if (header_item==last_header_item)
             break;
@@ -230,14 +241,22 @@ int IRIS_File::load(std::string stFile){
   
   for (int recordNum=0; recordNum<records.size(); recordNum++)
   {
+#ifdef MEXICO        
+        if (lastLastName.compare(lastNames[recordNum])==0 || (lastLastName.find_last_of(' ')!=std::string::npos && (lastLastName.substr(0,lastLastName.find_last_of(' ')).compare(lastNames[recordNum])==0 || lastLastName.substr(lastLastName.find_last_of(' ')+1).compare(lastNames[recordNum])==0)))
+#else
         if (lastLastName.compare(lastNames[recordNum])==0)
+#endif
         {
             if (givenNames[recordNum].length()>0 && (givenNames[recordNum].length()>1 || (givenNames[recordNum][0]!=' ') && givenNames[recordNum][0]!='\t'))
+#ifdef MEXICO        
+                records[recordNum]["PR_NAME"]=givenNames[recordNum]+" ["+lastNames[recordNum]+"]";
+#else
                 records[recordNum]["PR_NAME"]="- "+givenNames[recordNum];
+#endif
             else
                 records[recordNum]["PR_NAME"]="";
-        
-            if(records[recordNum]["PR_RELATIONSHIP"].compare("Head")==0)
+
+            if(isHead[recordNum])
             {
                 //There is some oddity about this record, so we'll just not use this and the above offending record
                 int rn=recordNum;
@@ -251,7 +270,11 @@ int IRIS_File::load(std::string stFile){
         else
         {
             if (givenNames[recordNum].length()>0 && (givenNames[recordNum].length()>1 || (givenNames[recordNum][0]!=' ') && givenNames[recordNum][0]!='\t'))
+#ifdef MEXICO        
+                records[recordNum]["PR_NAME"]=givenNames[recordNum] + " " +lastNames[recordNum];
+#else
                 records[recordNum]["PR_NAME"]=lastNames[recordNum] + " " +givenNames[recordNum];
+#endif
             else
                 records[recordNum]["PR_NAME"]=lastNames[recordNum];
             lastLastName=lastNames[recordNum];
